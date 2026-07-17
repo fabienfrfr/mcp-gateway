@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MODEL = os.environ.get("AI_MODEL", "gpt-5") # ex: enterprise compliance model
+MODEL = os.environ.get("AI_MODEL", "gpt-5")  # ex: enterprise compliance model
 BASE_URL = os.environ.get("AI_BASE_URL", "http://localhost:4000/v1")
 API_KEY = os.environ.get("AI_APIKEY", "dummy")
 
@@ -47,8 +47,7 @@ def _tool_to_openai_schema(tool) -> dict:
         "function": {
             "name": tool.name,
             "description": tool.description or "",
-            "parameters": tool.inputSchema
-            or {"type": "object", "properties": {}},
+            "parameters": tool.inputSchema or {"type": "object", "properties": {}},
         },
     }
 
@@ -81,11 +80,7 @@ async def _call_mcp_tool(tool_name: str, arguments: dict) -> str:
         mcp_session, _ = cl.context.session.mcp_sessions.get(connection_name)
         result = await mcp_session.call_tool(tool_name, arguments)
 
-        return "\n".join(
-            block.text
-            for block in result.content
-            if hasattr(block, "text")
-        )
+        return "\n".join(block.text for block in result.content if hasattr(block, "text"))
     except Exception as exc:
         return f"Tool execution failed: {exc}"
 
@@ -102,9 +97,7 @@ async def on_mcp_connect(connection, session) -> None:
 
     tool_names = ", ".join(t.name for t in result.tools) or "no tools"
 
-    await cl.Message(
-        content=f"Connected to **{connection.name}**: {tool_names}"
-    ).send()
+    await cl.Message(content=f"Connected to **{connection.name}**: {tool_names}").send()
 
 
 @cl.on_mcp_disconnect
@@ -159,9 +152,7 @@ async def on_message(message: cl.Message) -> None:
                 tools=tools or None,
             )
         except Exception as exc:
-            await cl.Message(
-                content=f"LLM request failed: {exc}"
-            ).send()
+            await cl.Message(content=f"LLM request failed: {exc}").send()
             return
 
         choice = response.choices[0].message
@@ -169,16 +160,12 @@ async def on_message(message: cl.Message) -> None:
         messages.append(choice.model_dump())
 
         if not choice.tool_calls:
-            await cl.Message(
-                content=choice.content or ""
-            ).send()
+            await cl.Message(content=choice.content or "").send()
             break
 
         for tool_call in choice.tool_calls:
             try:
-                arguments = json.loads(
-                    tool_call.function.arguments or "{}"
-                )
+                arguments = json.loads(tool_call.function.arguments or "{}")
             except json.JSONDecodeError:
                 arguments = {}
 
@@ -203,8 +190,6 @@ async def on_message(message: cl.Message) -> None:
                 }
             )
     else:
-        await cl.Message(
-            content="Maximum tool-calling iterations reached."
-        ).send()
+        await cl.Message(content="Maximum tool-calling iterations reached.").send()
 
     cl.user_session.set("messages", messages)
