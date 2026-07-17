@@ -112,10 +112,7 @@ async def on_mcp_disconnect(name: str, session) -> None:
 @cl.on_chat_start
 async def on_chat_start() -> None:
     """Initialize chat session."""
-    cl.user_session.set(
-        "messages",
-        [{"role": "system", "content": SYSTEM_PROMPT}],
-    )
+    cl.user_session.set("messages", [{"role": "system", "content": SYSTEM_PROMPT}])
 
     cl.user_session.set("mcp_tools", {})
 
@@ -133,23 +130,14 @@ async def on_message(message: cl.Message) -> None:
     """Handle user messages and tool-calling loop."""
     messages: list[dict] = cl.user_session.get("messages")
 
-    messages.append(
-        {
-            "role": "user",
-            "content": message.content,
-        }
-    )
+    messages.append({"role": "user", "content": message.content})
 
     tools, _ = _available_tools()
 
     for _ in range(MAX_TOOL_ROUNDS):
         try:
             response = await litellm.acompletion(
-                model=MODEL,
-                base_url=BASE_URL,
-                api_key=API_KEY,
-                messages=messages,
-                tools=tools or None,
+                model=MODEL, base_url=BASE_URL, api_key=API_KEY, messages=messages, tools=tools or None
             )
         except Exception as exc:
             await cl.Message(content=f"LLM request failed: {exc}").send()
@@ -169,26 +157,14 @@ async def on_message(message: cl.Message) -> None:
             except json.JSONDecodeError:
                 arguments = {}
 
-            async with cl.Step(
-                name=tool_call.function.name,
-                type="tool",
-            ) as step:
+            async with cl.Step(name=tool_call.function.name, type="tool") as step:
                 step.input = arguments
 
-                tool_result = await _call_mcp_tool(
-                    tool_call.function.name,
-                    arguments,
-                )
+                tool_result = await _call_mcp_tool(tool_call.function.name, arguments)
 
                 step.output = tool_result
 
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": tool_result,
-                }
-            )
+            messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": tool_result})
     else:
         await cl.Message(content="Maximum tool-calling iterations reached.").send()
 

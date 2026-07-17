@@ -24,13 +24,7 @@ SQL_PORTAL_URL = os.getenv("SQL_PORTAL_URL", "")
 SQL_PORTAL_LOGIN = os.getenv("SQL_PORTAL_LOGIN", "")
 SQL_PORTAL_PASSWORD = os.getenv("SQL_PORTAL_PASSWORD", "")
 
-VERIFY_SSL = (
-    os.getenv(
-        "SQL_PORTAL_VERIFY_SSL",
-        "false",
-    ).lower()
-    == "true"
-)
+VERIFY_SSL = os.getenv("SQL_PORTAL_VERIFY_SSL", "false").lower() == "true"
 
 METADATA_SQL = os.getenv(
     "SQL_METADATA_SQL",
@@ -42,10 +36,7 @@ METADATA_SQL = os.getenv(
     """,
 )
 
-EMBEDDING_MODEL = os.getenv(
-    "EMBEDDING_MODEL",
-    "BAAI/bge-small-en-v1.5",
-)
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 
 # -----------------------------------------------------------------------------
 # Models
@@ -67,15 +58,8 @@ class TableResponse(BaseModel):
     row_count: int
 
     @classmethod
-    def from_dataframe(
-        cls,
-        df: pd.DataFrame,
-    ) -> "TableResponse":
-        return cls(
-            columns=list(df.columns),
-            rows=df.to_dict(orient="records"),
-            row_count=len(df),
-        )
+    def from_dataframe(cls, df: pd.DataFrame) -> "TableResponse":
+        return cls(columns=list(df.columns), rows=df.to_dict(orient="records"), row_count=len(df))
 
 
 # -----------------------------------------------------------------------------
@@ -84,8 +68,7 @@ class TableResponse(BaseModel):
 
 
 class SqlPortalClient:
-    """
-    Generic HTTP SQL portal client.
+    """Generic HTTP SQL portal client.
 
     Assumes:
 
@@ -95,11 +78,7 @@ class SqlPortalClient:
     """
 
     def __init__(
-        self,
-        url: str,
-        login: str | None = None,
-        password: str | None = None,
-        verify_ssl: bool = False,
+        self, url: str, login: str | None = None, password: str | None = None, verify_ssl: bool = False
     ) -> None:
         self.url = url
         self.verify_ssl = verify_ssl
@@ -107,21 +86,10 @@ class SqlPortalClient:
         self.session = requests.Session()
 
         if login:
-            self.session.auth = (
-                login,
-                password or "",
-            )
+            self.session.auth = (login, password or "")
 
-    def execute_sql(
-        self,
-        sql: str,
-    ) -> pd.DataFrame:
-        response = self.session.get(
-            self.url,
-            params={"sql": sql},
-            verify=self.verify_ssl,
-            timeout=300,
-        )
+    def execute_sql(self, sql: str) -> pd.DataFrame:
+        response = self.session.get(self.url, params={"sql": sql}, verify=self.verify_ssl, timeout=300)
 
         response.raise_for_status()
 
@@ -140,10 +108,7 @@ class SqlPortalClient:
 
 
 class MetadataSearchService:
-    def __init__(
-        self,
-        metadata: pd.DataFrame,
-    ) -> None:
+    def __init__(self, metadata: pd.DataFrame) -> None:
         self.metadata = metadata.copy()
 
         if "table_name" not in self.metadata.columns:
@@ -152,9 +117,7 @@ class MetadataSearchService:
         if "description" not in self.metadata.columns:
             self.metadata["description"] = ""
 
-        self.model = TextEmbedding(
-            model_name=EMBEDDING_MODEL,
-        )
+        self.model = TextEmbedding(model_name=EMBEDDING_MODEL)
 
         texts = (
             self.metadata["table_name"].fillna("").astype(str)
@@ -164,11 +127,7 @@ class MetadataSearchService:
 
         self.embeddings = np.vstack(list(self.model.embed(texts)))
 
-    def search(
-        self,
-        query: str,
-        limit: int = 10,
-    ) -> list:
+    def search(self, query: str, limit: int = 10) -> list:
         query_embedding = np.asarray(list(self.model.embed([query]))[0])
 
         scores = self.embeddings @ query_embedding
@@ -181,11 +140,7 @@ class MetadataSearchService:
             row = self.metadata.iloc[idx]
 
             results.append(
-                {
-                    "table_name": row["table_name"],
-                    "description": row["description"],
-                    "score": float(scores[idx]),
-                }
+                {"table_name": row["table_name"], "description": row["description"], "score": float(scores[idx])}
             )
 
         return results
@@ -197,28 +152,12 @@ class MetadataSearchService:
 
 
 class SqlService:
-    FORBIDDEN = {
-        "insert",
-        "update",
-        "delete",
-        "drop",
-        "alter",
-        "truncate",
-        "create",
-        "grant",
-        "revoke",
-    }
+    FORBIDDEN = {"insert", "update", "delete", "drop", "alter", "truncate", "create", "grant", "revoke"}
 
-    def __init__(
-        self,
-        client: SqlPortalClient,
-    ):
+    def __init__(self, client: SqlPortalClient):
         self.client = client
 
-    def query(
-        self,
-        sql: str,
-    ) -> pd.DataFrame:
+    def query(self, sql: str) -> pd.DataFrame:
         lowered = sql.lower()
 
         for keyword in self.FORBIDDEN:
@@ -227,32 +166,16 @@ class SqlService:
 
         return self.client.execute_sql(sql)
 
-    def explore(
-        self,
-        table: str,
-        limit: int = 100,
-    ) -> pd.DataFrame:
+    def explore(self, table: str, limit: int = 100) -> pd.DataFrame:
         return self.query(f"select * from {table} limit {int(limit)}")
 
-    def count(
-        self,
-        table: str,
-    ) -> pd.DataFrame:
+    def count(self, table: str) -> pd.DataFrame:
         return self.query(f"select count(*) as count from {table}")
 
-    def distinct(
-        self,
-        table: str,
-        column: str,
-    ) -> pd.DataFrame:
+    def distinct(self, table: str, column: str) -> pd.DataFrame:
         return self.query(f"select distinct {column} from {table} order by {column}")
 
-    def top(
-        self,
-        table: str,
-        column: str,
-        limit: int = 10,
-    ) -> pd.DataFrame:
+    def top(self, table: str, column: str, limit: int = 10) -> pd.DataFrame:
         return self.query(
             f"select {column}, count(*) as count from {table} group by {column} order by count desc limit {int(limit)}"
         )
@@ -264,20 +187,13 @@ class SqlService:
 
 
 @asynccontextmanager
-async def portal_lifespan(
-    app: FastAPI,
-):
+async def portal_lifespan(app: FastAPI):
     client = SqlPortalClient(
-        url=SQL_PORTAL_URL,
-        login=SQL_PORTAL_LOGIN,
-        password=SQL_PORTAL_PASSWORD,
-        verify_ssl=VERIFY_SSL,
+        url=SQL_PORTAL_URL, login=SQL_PORTAL_LOGIN, password=SQL_PORTAL_PASSWORD, verify_ssl=VERIFY_SSL
     )
 
     app.state.sql_client = client
-
     metadata_df = client.execute_sql(METADATA_SQL)
-
     app.state.metadata_search = MetadataSearchService(metadata_df)
 
     yield
@@ -290,138 +206,58 @@ async def portal_lifespan(
 app = FastAPI(title="SQL MCP Gateway")
 
 
-def get_service(
-    request: Request,
-) -> SqlService:
+def get_service(request: Request) -> SqlService:
     return SqlService(request.app.state.sql_client)
 
 
-@app.post(
-    "/query",
-    operation_id="query_sql",
-    response_model=TableResponse,
-)
-def query_sql(
-    query: SqlQuery,
-    request: Request,
-) -> TableResponse:
-    """
-    Execute a read-only SQL query.
-    """
+@app.post("/query", operation_id="query_sql", response_model=TableResponse)
+def query_sql(query: SqlQuery, request: Request) -> TableResponse:
+    """Execute a read-only SQL query."""
     try:
         df = get_service(request).query(query.sql)
 
         return TableResponse.from_dataframe(df)
 
     except Exception as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        )
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
-@app.post(
-    "/search-tables",
-    operation_id="search_tables",
-)
-def search_tables(
-    query: TableSearchQuery,
-    request: Request,
-):
-    """
-    Semantic table search.
-    """
-
+@app.post("/search-tables", operation_id="search_tables")
+def search_tables(query: TableSearchQuery, request: Request):
+    """Semantic table search."""
     search_service = request.app.state.metadata_search
 
-    return search_service.search(
-        query=query.text,
-        limit=query.limit,
-    )
+    return search_service.search(query=query.text, limit=query.limit)
 
 
-@app.get(
-    "/explore/{table}",
-    operation_id="explore_table",
-    response_model=TableResponse,
-)
-def explore_table(
-    table: str,
-    request: Request,
-    limit: int = 100,
-):
-    """
-    Return sample rows.
-    """
-
-    df = get_service(request).explore(
-        table=table,
-        limit=limit,
-    )
+@app.get("/explore/{table}", operation_id="explore_table", response_model=TableResponse)
+def explore_table(table: str, request: Request, limit: int = 100):
+    """Return sample rows."""
+    df = get_service(request).explore(table=table, limit=limit)
 
     return TableResponse.from_dataframe(df)
 
 
-@app.get(
-    "/count/{table}",
-    operation_id="count_rows",
-    response_model=TableResponse,
-)
-def count_rows(
-    table: str,
-    request: Request,
-):
-    """
-    Count rows.
-    """
-
+@app.get("/count/{table}", operation_id="count_rows", response_model=TableResponse)
+def count_rows(table: str, request: Request):
+    """Count rows."""
     df = get_service(request).count(table)
 
     return TableResponse.from_dataframe(df)
 
 
-@app.get(
-    "/distinct/{table}/{column}",
-    operation_id="distinct_values",
-    response_model=TableResponse,
-)
-def distinct_values(
-    table: str,
-    column: str,
-    request: Request,
-):
-    """
-    Distinct values.
-    """
-
-    df = get_service(request).distinct(
-        table,
-        column,
-    )
+@app.get("/distinct/{table}/{column}", operation_id="distinct_values", response_model=TableResponse)
+def distinct_values(table: str, column: str, request: Request):
+    """Distinct values."""
+    df = get_service(request).distinct(table, column)
 
     return TableResponse.from_dataframe(df)
 
 
-@app.get(
-    "/top/{table}/{column}",
-    operation_id="top_values",
-    response_model=TableResponse,
-)
-def top_values(
-    table: str,
-    column: str,
-    request: Request,
-    limit: int = 10,
-):
-    """
-    Most frequent values.
-    """
-
-    df = get_service(request).top(
-        table=table,
-        column=column,
-        limit=limit,
-    )
+@app.get("/top/{table}/{column}", operation_id="top_values", response_model=TableResponse)
+def top_values(table: str, column: str, request: Request, limit: int = 10):
+    """Most frequent values."""
+    df = get_service(request).top(table=table, column=column, limit=limit)
 
     return TableResponse.from_dataframe(df)
 
@@ -430,21 +266,9 @@ def top_values(
 # MCP
 # -----------------------------------------------------------------------------
 
-mcp = FastMCP.from_fastapi(
-    app=app,
-    name="SQL Gateway",
-)
+mcp = FastMCP.from_fastapi(app=app, name="SQL Gateway")
 
-mcp_app = mcp.http_app(
-    path="/",
-)
+mcp_app = mcp.http_app(path="/")
+app.router.lifespan_context = combine_lifespans(portal_lifespan, mcp_app.lifespan)
 
-app.router.lifespan_context = combine_lifespans(
-    portal_lifespan,
-    mcp_app.lifespan,
-)
-
-app.mount(
-    "/mcp",
-    mcp_app,
-)
+app.mount("/mcp", mcp_app)
