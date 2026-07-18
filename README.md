@@ -50,3 +50,17 @@ uv run chainlit run chatbot.py -w
 * **Path Parameter Blindness:** Complex dynamic routes like `/distinct/{table}/{column}` require the LLM to successfully call `/search-tables` first to discover valid values.
 * **Tight Coupling:** Aligning REST routes to serve both human UX and LLM token-efficiency can require design trade-offs for heavily nested data.
 
+## AI
+
+```
+# if : full python agent
+uv tool install aider-chat --python 3.12 --force
+uv tool install specify-cli
+specify init mcp-gateway --integration claude --ignore-agent-tools
+
+# else : npm agent (like claude code)
+sudo apt update && sudo apt install -y nodejs npm
+sudo npm install -g @opencode/cli
+sudo npm install -g @fission-ai/openspec@latest
+openspec init
+```
