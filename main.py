@@ -14,7 +14,11 @@ from fastmcp import FastMCP
 from fastmcp.utilities.lifespan import combine_lifespans
 from pydantic import BaseModel
 
+from pathlib import Path
+from sqlalchemy import create_engine
+
 load_dotenv()
+
 
 # -----------------------------------------------------------------------------
 # Configuration
@@ -185,19 +189,106 @@ class SqlService:
 # Lifespan
 # -----------------------------------------------------------------------------
 
-
 @asynccontextmanager
 async def portal_lifespan(app: FastAPI):
-    client = SqlPortalClient(
-        url=SQL_PORTAL_URL, login=SQL_PORTAL_LOGIN, password=SQL_PORTAL_PASSWORD, verify_ssl=VERIFY_SSL
-    )
+    if SQL_PORTAL_URL:
+        client = SqlPortalClient(
+            url=SQL_PORTAL_URL,
+            login=SQL_PORTAL_LOGIN,
+            password=SQL_PORTAL_PASSWORD,
+            verify_ssl=VERIFY_SSL,
+        )
 
-    app.state.sql_client = client
-    metadata_df = client.execute_sql(METADATA_SQL)
-    app.state.metadata_search = MetadataSearchService(metadata_df)
+        app.state.sql_client = client
+
+        metadata_df = client.execute_sql(METADATA_SQL)
+        app.state.metadata_search = MetadataSearchService(metadata_df)
+
+    else:
+        # ---------------------------------------------------------------------
+        # Local SQLite fallback
+        # ---------------------------------------------------------------------
+
+        sqlite_path = Path("local.db")
+
+        engine = create_engine(f"sqlite:///{sqlite_path}")
+
+        if not sqlite_path.exists():
+            demo_metadata = pd.DataFrame(
+                [
+                    {
+                        "table_name": "customers",
+                        "description": "Customer master data",
+                    },
+                    {
+                        "table_name": "orders",
+                        "description": "Customer orders",
+                    },
+                ]
+            )
+
+            demo_customers = pd.DataFrame(
+                [
+                    {"id": 1, "name": "Alice", "country": "FR"},
+                    {"id": 2, "name": "Bob", "country": "US"},
+                    {"id": 3, "name": "Charlie", "country": "FR"},
+                ]
+            )
+
+            demo_orders = pd.DataFrame(
+                [
+                    {"id": 1, "customer_id": 1, "amount": 100},
+                    {"id": 2, "customer_id": 1, "amount": 200},
+                    {"id": 3, "customer_id": 2, "amount": 150},
+                ]
+            )
+
+            demo_metadata.to_sql(
+                "metadata_tables",
+                engine,
+                if_exists="replace",
+                index=False,
+            )
+
+            demo_customers.to_sql(
+                "customers",
+                engine,
+                if_exists="replace",
+                index=False,
+            )
+
+            demo_orders.to_sql(
+                "orders",
+                engine,
+                if_exists="replace",
+                index=False,
+            )
+
+        class SQLiteClient:
+            def __init__(self, engine):
+                self.engine = engine
+
+            def execute_sql(self, sql: str) -> pd.DataFrame:
+                return pd.read_sql_query(sql, self.engine)
+
+        client = SQLiteClient(engine)
+
+        app.state.sql_client = client
+
+        metadata_df = client.execute_sql(
+            """
+            select
+                table_name,
+                description
+            from metadata_tables
+            """
+        )
+
+        app.state.metadata_search = MetadataSearchService(metadata_df)
+
+        print("Using local SQLite fallback database")
 
     yield
-
 
 # -----------------------------------------------------------------------------
 # FastAPI
@@ -272,3 +363,17 @@ mcp_app = mcp.http_app(path="/")
 app.router.lifespan_context = combine_lifespans(portal_lifespan, mcp_app.lifespan)
 
 app.mount("/mcp", mcp_app)
+
+
+# -----------------------------------------------------------------------------
+# Run
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8080,
+        reload=True,
+    )

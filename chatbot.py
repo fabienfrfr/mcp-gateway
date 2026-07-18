@@ -25,6 +25,7 @@ import chainlit as cl
 import litellm
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
 MODEL = os.environ.get("AI_MODEL", "gpt-5")  # ex: enterprise compliance model
@@ -38,6 +39,9 @@ SYSTEM_PROMPT = (
 )
 
 MAX_TOOL_ROUNDS = 10
+
+
+
 
 
 def _tool_to_openai_schema(tool) -> dict:
@@ -119,7 +123,7 @@ async def on_chat_start() -> None:
     await cl.Message(
         content=(
             "Click the 🔌 icon to connect an MCP server "
-            "(for example `http://localhost:8000/mcp/`), "
+            "(for example `http://localhost:8080/mcp/`), "
             "then start chatting."
         )
     ).send()
