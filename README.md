@@ -3,7 +3,7 @@
 A generic, semantic MCP gateway exposing any HTTP-based SQL portal as both LLM-friendly MCP tools and standard REST endpoints. Designed from the ground up to serve human users (via UI/API) and AI agents simultaneously.
 
 ```bash
-uv run uvicorn main:app --reload
+uv run main.py
 uv run chainlit run chatbot.py -w
 ```
 
