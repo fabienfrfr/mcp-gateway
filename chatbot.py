@@ -18,8 +18,10 @@ Connect MCP servers directly from the chat UI (🔌 icon). No code changes are r
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+from contextlib import AsyncExitStack
 
 import chainlit as cl
 import litellm
@@ -31,6 +33,8 @@ load_dotenv()
 MODEL = os.environ.get("AI_MODEL", "gpt-5")  # ex: enterprise compliance model
 BASE_URL = os.environ.get("AI_BASE_URL", "http://localhost:4000/v1")
 API_KEY = os.environ.get("AI_APIKEY", "dummy")
+
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://localhost:8080/mcp")
 
 SYSTEM_PROMPT = (
     "You are an AI assistant with access to connected MCP tools. "
@@ -115,18 +119,65 @@ async def on_mcp_disconnect(name: str, session) -> None:
 
 @cl.on_chat_start
 async def on_chat_start() -> None:
-    """Initialize chat session."""
+    """Initialize chat session and auto-connect to the MCP gateway."""
     cl.user_session.set("messages", [{"role": "system", "content": SYSTEM_PROMPT}])
 
     cl.user_session.set("mcp_tools", {})
 
-    await cl.Message(
-        content=(
-            "Click the 🔌 icon to connect an MCP server "
-            "(for example `http://localhost:8080/mcp/`), "
-            "then start chatting."
+    try:
+        # wrong code from opencode (free zen : big --> use better model)
+        from mcp import ClientSession
+        from mcp.client.streamable_http import streamablehttp_client
+
+        from chainlit.context import init_ws_context
+        from chainlit.mcp import HttpMcpConnection
+        from chainlit.session import McpSession, WebsocketSession
+
+        session = WebsocketSession.get_by_id(cl.context.session.id)
+        init_ws_context(session)
+
+        mcp_connection = HttpMcpConnection(name="SQL Gateway", url=MCP_SERVER_URL)
+
+        exit_stack = AsyncExitStack()
+        transport = await exit_stack.enter_async_context(
+            streamablehttp_client(url=MCP_SERVER_URL)
         )
-    ).send()
+        read, write = transport[:2]
+
+        mcp_client = await exit_stack.enter_async_context(
+            ClientSession(read_stream=read, write_stream=write, sampling_callback=None)
+        )
+        await mcp_client.initialize()
+
+        stop_event = asyncio.Event()
+
+        async def _keep_alive():
+            try:
+                await stop_event.wait()
+            finally:
+                await exit_stack.aclose()
+
+        task = asyncio.create_task(_keep_alive())
+
+        mcp_session_obj = McpSession(
+            name=mcp_connection.name,
+            client=mcp_client,
+            task=task,
+            stop_event=stop_event,
+        )
+        session.mcp_sessions[mcp_connection.name] = mcp_session_obj
+
+        if cl.config.code.on_mcp_connect:
+            await cl.config.code.on_mcp_connect(mcp_connection, mcp_client)
+
+    except Exception as exc:
+        await cl.Message(
+            content=(
+                f"Could not auto-connect to MCP server at `{MCP_SERVER_URL}`: {exc}\n\n"
+                "You can still connect manually via the 🔌 icon."
+            )
+        ).send()
+
 
 
 @cl.on_message
