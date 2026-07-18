@@ -54,6 +54,7 @@ uv run chainlit run chatbot.py -w
 
 ```
 # if : full python agent
+curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install aider-chat --python 3.12 --force
 uv tool install specify-cli
 specify init mcp-gateway --integration claude --ignore-agent-tools
@@ -62,5 +63,5 @@ specify init mcp-gateway --integration claude --ignore-agent-tools
 sudo apt update && sudo apt install -y nodejs npm
 sudo npm install -g @opencode/cli
 sudo npm install -g @fission-ai/openspec@latest
-openspec init
+openspec init --tools opencode
 ```
