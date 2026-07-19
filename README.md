@@ -53,13 +53,14 @@ uv run chainlit run chatbot.py -w
 ## AI
 
 ```
-# if : full python agent
+# if : full python agent (use openrouter)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install aider-chat --python 3.12 --force
 uv tool install specify-cli
 specify init mcp-gateway --integration claude --ignore-agent-tools
+aider --model openrouter/nvidia/nemotron-3-ultra-550b-a55b:free --no-auto-commits --test-cmd pytest
 
-# else : npm agent (like claude code)
+# else : npm agent (like claude code but zen)
 sudo apt update && sudo apt install -y nodejs npm
 sudo npm install -g @opencode/cli
 sudo npm install -g @fission-ai/openspec@latest
