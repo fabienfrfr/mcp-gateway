@@ -66,5 +66,7 @@ coverage.xml
 # option : Keep the lock file versioned
 uv.lock
 
-# IA
+# IA (git rm -r --cached .opencode/ openspec/)
 .aider*
+.opencode/*
+openspec/*
