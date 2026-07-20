@@ -362,7 +362,7 @@ mcp = FastMCP.from_fastapi(app=app, name="SQL Gateway")
 mcp_app = mcp.http_app(path="/")
 app.router.lifespan_context = combine_lifespans(portal_lifespan, mcp_app.lifespan)
 
-app.mount("/mcp", mcp_app)
+app.mount("/mcp/", mcp_app)
 
 
 # -----------------------------------------------------------------------------

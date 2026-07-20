@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.139.2",
     "fastmcp>=3.4.4",
     "litellm>=1.92.0",
+    "orjson>=3.11.9",
     "pandas>=3.0.3",
     "pathlib>=1.0.1",
     "python-dotenv>=1.2.2",
