@@ -1,0 +1,19 @@
+model_list:
+  - model_name: openrouter
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: openai
+    litellm_params:
+      model: gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: ollama
+    litellm_params:
+      model: ollama/llama3
+      api_base: os.environ/OLLAMA_BASE_URL
+
+litellm_settings:
+  fallbacks:
+    - openrouter: ["openai", "ollama"]
+    - openai: ["openrouter", "ollama"]
+  drop_params: true

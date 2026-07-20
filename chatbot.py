@@ -25,14 +25,48 @@ from contextlib import AsyncExitStack
 
 import chainlit as cl
 import litellm
+import yaml
 from dotenv import load_dotenv
 
 
 load_dotenv()
 
-MODEL = os.environ.get("AI_MODEL", "gpt-5")  # ex: enterprise compliance model
-BASE_URL = os.environ.get("AI_BASE_URL", "http://localhost:4000/v1")
-API_KEY = os.environ.get("AI_APIKEY", "dummy")
+CONFIG_PATH = os.environ.get("LITELLM_CONFIG", "litellm_config.yaml")
+
+litellm_config: dict = {}
+if os.path.exists(CONFIG_PATH):
+    with open(CONFIG_PATH) as f:
+        litellm_config = yaml.safe_load(f) or {}
+
+
+def _resolve_env_refs(params: dict) -> dict:
+    """Resolve litellm proxy env references like 'os.environ/VAR_NAME'."""
+    resolved = {}
+    for key, value in params.items():
+        if isinstance(value, str) and value.startswith("os.environ/"):
+            env_var = value.split("/", 1)[1]
+            resolved[key] = os.environ.get(env_var, value)
+        else:
+            resolved[key] = value
+    return resolved
+
+
+def _resolve_model(alias: str) -> dict:
+    """Resolve a model alias from litellm_config.yaml to litellm params."""
+    for entry in litellm_config.get("model_list", []):
+        if entry.get("model_name") == alias:
+            return _resolve_env_refs(entry.get("litellm_params", {}))
+    return {}
+
+
+MODEL_ALIAS = os.environ.get("AI_MODEL", "openrouter")
+_model_params = _resolve_model(MODEL_ALIAS)
+
+if not _model_params:
+    raise ValueError(
+        f"Model alias '{MODEL_ALIAS}' not found in {CONFIG_PATH}. "
+        f"Available: {[m.get('model_name') for m in litellm_config.get('model_list', [])]}"
+    )
 
 MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://localhost:8080/mcp")
 
@@ -192,7 +226,7 @@ async def on_message(message: cl.Message) -> None:
     for _ in range(MAX_TOOL_ROUNDS):
         try:
             response = await litellm.acompletion(
-                model=MODEL, base_url=BASE_URL, api_key=API_KEY, messages=messages, tools=tools or None
+                **_model_params, messages=messages, tools=tools or None
             )
         except Exception as exc:
             await cl.Message(content=f"LLM request failed: {exc}").send()
