@@ -61,8 +61,12 @@ specify init mcp-gateway --integration claude --ignore-agent-tools
 aider --model openrouter/nvidia/nemotron-3-ultra-550b-a55b:free --no-auto-commits --test-cmd pytest
 
 # else : npm agent (like claude code but zen)
-sudo apt update && sudo apt install -y nodejs npm
+sudo apt update && sudo apt install -y nodejs npm firejail
 sudo npm install -g @opencode/cli
 sudo npm install -g @fission-ai/openspec@latest
+
+sudo mv /usr/local/bin/opencode /usr/local/bin/opencode-real
+echo -e '#!/bin/bash\nfirejail --private="$PWD" /usr/local/bin/opencode-real "$@"' | sudo tee /usr/local/bin/opencode > /dev/null && \
+sudo chmod +x /usr/local/bin/opencode
 openspec init --tools opencode
 ```
