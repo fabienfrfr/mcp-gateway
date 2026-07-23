@@ -359,6 +359,36 @@ def top_values(table: str, column: str, request: Request, limit: int = 10):
 
 mcp = FastMCP.from_fastapi(app=app, name="SQL Gateway")
 
+@mcp.prompt
+def sql_gateway_guidance() -> str:
+    """
+    Short best‑practice guidance for the SQL Gateway MCP.
+    """
+    return """
+# SQL Gateway Guidance
+
+This MCP provides safe, read‑only SQL access.
+
+## Rules
+- Only generate read‑only SQL queries.
+- Forbidden keywords: INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE, GRANT, REVOKE.
+- Validate table and column names before using them.
+
+## Recommended Workflow
+1. Use `search_tables` to find relevant tables.
+2. Use `explore_table` to inspect sample rows.
+3. Use `distinct_values` or `top_values` to explore categories.
+4. Use `count_rows` to estimate table size.
+5. Use `query_sql` for analytical, side‑effect‑free queries.
+
+## Safety
+- Use LIMIT to avoid large result sets.
+- Avoid complex joins unless the schema is clear.
+
+This guidance ensures safe and predictable usage of the SQL Gateway MCP.
+"""
+
+
 mcp_app = mcp.http_app(path="/")
 app.router.lifespan_context = combine_lifespans(portal_lifespan, mcp_app.lifespan)
 
